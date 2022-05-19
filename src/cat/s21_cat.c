@@ -10,12 +10,13 @@ int main(int argc, char *argv[]) {
                 if (argv[i][y] != '-') {
                     ptr.name_file += 1;
                     position_str =
-                        realloc(position_str, (ptr.name_file) * sizeof(int));
+                        realloc(position_str, ptr.name_file * sizeof(int));
                     position_str[ptr.name_file - 1] = i;
                     break;
-                } else if (check_flags_linux(argv[i], &ptr) && ptr.name_file == 0) {
+                } else if (argv[i][y + 1] == '-') {
+                    check_flags_linux(argv[i], &ptr);
                     break;
-                } else if(ptr.name_file == 0) {
+                } else {
                     for (int j = y + 1; argv[i][j]; j++) {
                         if (!check_flags_bash(argv, i, j, &ptr)) {
                             printf("cat: неверный ключ — «%c»\n", argv[i][j]);
@@ -44,6 +45,7 @@ int check_flags_linux(char *argv, struct flags *ptr) {
         res = 3;
     } else {
         printf("cat: нераспознанный параметр «%s»\n", argv);
+        
     }
     return res;
 }
@@ -83,6 +85,7 @@ void init_struct_flags(struct flags *ptr) {
     ptr->s = 0;
     ptr->t = 0;
     ptr->v = 0;
+    ptr->name_file = 0;
 }
 
 void check_file(char *argv[], struct flags *ptr, int *position_str) {
@@ -91,45 +94,69 @@ void check_file(char *argv[], struct flags *ptr, int *position_str) {
     char *str = NULL;
     int numiration = 1;
     int j;
+    int tmp = 0, check_s = 0;
+  
     for (int i = 0; i < ptr->name_file; i++) {
         if ((ptr_file = fopen(argv[position_str[i]], "r")) == NULL) {
-            printf("ERROR\n");
+            printf("cat: %s: Нет такого файла или каталога\n", argv[position_str[i]]);
         } else {
             for (j = 0; (c = fgetc(ptr_file)) != EOF; j++) {
-                str = realloc(str, (j + 1) * sizeof(char));
-                str[j] = c;
+                str = realloc(str, (tmp + 1) * sizeof(char));
+                str[tmp] = c; tmp++; 
+                if (c == '\n'){
+                    str = realloc(str, (tmp + 1) * sizeof(char));
+                    str[tmp + 1] = '\0';
+                    output_file_with_flags(ptr, str, &numiration, &check_s);
+                    tmp = 0;
+                    str = NULL;
+                }           
+                }
+                if (str)
+                {
+                output_file_with_flags(ptr, str, &numiration, &check_s);
+                str = NULL;
+                }  
+                  fclose(ptr_file);
+                  j = 0;
+                  tmp = 0;
             }
-            str[j] = '\0';
+            
+        }  
+        if(!str) {free(str);}
+    }  
 
-            output_file_with_flags(ptr, str, &numiration);
-        }
-    }
 
-    
-}
-
-void output_file_with_flags(struct flags *ptr, char *str, int *numiration) {
+void output_file_with_flags(struct flags *ptr, char *str, int *numiration, int *check_s) {
     int check = 1;
     if (ptr->s) {
         for (int i = 0; str[i]; i++) {
-            if (str[i] != ' ') {
-                check = 0;
+            if (str[i] != ' ' && str[i] != '\n') {
+               check = 0;
             }
         }
         if (check) {
-            return;
+            (*check_s) += 1;
+        } else {
+            (*check_s) = 0;
         }
+        if ((*check_s) > 1)
+        {
+            *check_s = 0;
+            return;
+        }    
     }
     if (ptr->b) {
         for (int i = 0; str[i]; i++) {
-            if (str[i] != ' ') {
-                printf("     %d", *numiration);
+            if (str[i] != ' ' && str[i] != '\n') {
+                printf("     %d  ", *numiration);
+                *numiration += 1;
                 break;
             }
         }
-    }
+    }  
     if (ptr->n && ptr->b == 0) {
         printf("     %d", *numiration);
+        *numiration += 1;
     }
     printf("%s", str);
 }

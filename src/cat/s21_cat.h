@@ -14,7 +14,7 @@ struct flags {
 
 int check_flags_linux(char *argv, struct flags *ptr);
 int check_flags_bash(char *argv[], int i, int y, struct flags *ptr);
-void output_file_with_flags(struct flags *ptr, char *str, int *numiration);
+void output_file_with_flags(struct flags *ptr, char *str, int *numiration, int *check_s);
 void check_file(char *argv[], struct flags *ptr, int *position_str);
 void init_struct_flags(struct flags *ptr);
 
