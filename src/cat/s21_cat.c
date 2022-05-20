@@ -45,7 +45,6 @@ int check_flags_linux(char *argv, struct flags *ptr) {
         res = 3;
     } else {
         printf("cat: нераспознанный параметр «%s»\n", argv);
-        
     }
     return res;
 }
@@ -86,77 +85,109 @@ void init_struct_flags(struct flags *ptr) {
     ptr->t = 0;
     ptr->v = 0;
     ptr->name_file = 0;
+    ptr->check_s = 0;
+    ptr->numiration = 1;
 }
 
 void check_file(char *argv[], struct flags *ptr, int *position_str) {
     FILE *ptr_file;
     char c;
     char *str = NULL;
-    int numiration = 1;
     int j;
-    int tmp = 0, check_s = 0;
-  
+    int tmp = 0;
+
     for (int i = 0; i < ptr->name_file; i++) {
         if ((ptr_file = fopen(argv[position_str[i]], "r")) == NULL) {
-            printf("cat: %s: Нет такого файла или каталога\n", argv[position_str[i]]);
+            printf("cat: %s: Нет такого файла или каталога\n",
+                   argv[position_str[i]]);
         } else {
             for (j = 0; (c = fgetc(ptr_file)) != EOF; j++) {
                 str = realloc(str, (tmp + 1) * sizeof(char));
-                str[tmp] = c; tmp++; 
-                if (c == '\n'){
+                str[tmp] = c;
+                tmp++;
+                if (c == '\n') {
                     str = realloc(str, (tmp + 1) * sizeof(char));
                     str[tmp + 1] = '\0';
-                    output_file_with_flags(ptr, str, &numiration, &check_s);
+                    output_file_with_flags(ptr, str);
                     tmp = 0;
                     str = NULL;
-                }           
                 }
-                if (str)
-                {
-                output_file_with_flags(ptr, str, &numiration, &check_s);
+            }
+            if (str) {
+                output_file_with_flags(ptr, str);
                 str = NULL;
-                }  
-                  fclose(ptr_file);
-                  j = 0;
-                  tmp = 0;
             }
-            
-        }  
-        if(!str) {free(str);}
-    }  
+            fclose(ptr_file);
+            j = 0;
+            tmp = 0;
+        }
+    }
+    if (!str) {
+        free(str);
+    }
+}
 
-
-void output_file_with_flags(struct flags *ptr, char *str, int *numiration, int *check_s) {
-    int check = 1;
+void output_file_with_flags(struct flags *ptr, char *str) {
     if (ptr->s) {
-        for (int i = 0; str[i]; i++) {
-            if (str[i] != ' ' && str[i] != '\n') {
-               check = 0;
-            }
-        }
-        if (check) {
-            (*check_s) += 1;
+        if (check_null_or_empty_str(str)) {
+            ptr->check_s = 0;
         } else {
-            (*check_s) = 0;
+            ptr->check_s += 1;
         }
-        if ((*check_s) > 1)
-        {
-            *check_s = 0;
+        if (ptr->check_s > 1) {
             return;
-        }    
+        }
     }
     if (ptr->b) {
-        for (int i = 0; str[i]; i++) {
-            if (str[i] != ' ' && str[i] != '\n') {
-                printf("     %d  ", *numiration);
-                *numiration += 1;
-                break;
+        if (check_null_or_empty_str(str)) {
+            printf("%6d\t", ptr->numiration);
+            ptr->numiration += 1;
+        }
+    }
+    if (ptr->n && ptr->b == 0) {
+        printf("%6d", ptr->numiration);
+        ptr->numiration += 1;
+    }
+    for (int i = 0; str[i]; i++) {
+        if (ptr->v == 1) {
+            int ch = (int)str[i];
+            if (str[i] < 0) {
+                str[i] &= 127;
+                ch = (int)str[i];
+                ch += 128;
+            }
+            if (ch != 9 && ch != 10 && ch < 32) {
+                printf("^");
+                str[i] += 64;
+            } else if (ch == 127) {
+                printf("^");
+                str[i] = '?';
+            } else if (ch > 127 && ch < 160) {
+                printf("M-^");
+                str[i] = ch - 64;
+                if (str[i] == 'J') {
+                    printf("%c", str[i]);
+                }
+            } else if (ch > 160 && ch <= 255) {
+                str[i] -= 128;
             }
         }
-    }  
-    if (ptr->n && ptr->b == 0) {
-        printf("     %d", *numiration);
-        *numiration += 1;
+        if (ptr->t == 1 && str[i] == '\t') {
+            printf("^");
+            str[i] = 'I';
+        }
+        printf("%c", str[i]);
     }
-    printf("%s", str);
+}
+int check_null_or_empty_str(char *str) {
+    int check = 0;
+    for (int i = 0; str[i]; i++) {
+        if (str[i] != ' ' && str[i] != '\n') {
+            check = 1;
+        }
+        if (str[i] == '\t') {
+            check = 1;
+        }
+    }
+    return check;
 }
