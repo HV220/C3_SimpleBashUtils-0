@@ -1,0 +1,6 @@
+make --dry-run --always-make --keep-going --print-directory
+make: Entering directory '/home/korpositas/projects_school/C3_SimpleBashUtils-0'
+make: Leaving directory '/home/korpositas/projects_school/C3_SimpleBashUtils-0'
+ 
+make: *** No targets specified and no makefile found.  Stop.
+

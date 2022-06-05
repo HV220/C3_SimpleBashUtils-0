@@ -5,7 +5,7 @@ int main(int argc, char *argv[]) {
     struct flags ptr;
     init_struct_flags(&ptr);
     if (argc > 1) {
-        for (int i = 1; i < argc; i++) {
+        for (int i = 1; i < argc && !ptr.errors; i++) {
             for (int y = 0; argv[i][y]; y++) {
                 if (argv[i][y] != '-') {
                     ptr.name_file += 1;
@@ -14,13 +14,11 @@ int main(int argc, char *argv[]) {
                     position_str[ptr.name_file - 1] = i;
                     break;
                 } else if (argv[i][y + 1] == '-') {
-                    check_flags_linux(argv[i], &ptr);
+                    if(!check_flags_linux(argv[i], &ptr)) {ptr.errors = 1;}
                     break;
                 } else {
-                    for (int j = y + 1; argv[i][j]; j++) {
-                        if (!check_flags_bash(argv, i, j, &ptr)) {
-                            printf("cat: неверный ключ — «%c»\n", argv[i][j]);
-                        }
+                    for (int j = y + 1; argv[i][j] && !ptr.errors; j++) {
+                    if(!check_flags_bash(argv, i, j, &ptr)) {ptr.errors = 1;}
                     }
                     break;
                 }
@@ -28,6 +26,8 @@ int main(int argc, char *argv[]) {
         }
         if (position_str) {
             check_file(argv, &ptr, position_str);
+        } else {
+        free(position_str);
         }
     }
     return 0;
@@ -44,7 +44,8 @@ int check_flags_linux(char *argv, struct flags *ptr) {
         ptr->s = 1;
         res = 3;
     } else {
-        printf("cat: нераспознанный параметр «%s»\n", argv);
+        printf("cat: illegal option -- %s\nusage: cat [-benstuv] [file "
+                    "...]\n", argv);
     }
     return res;
 }
@@ -58,22 +59,28 @@ int check_flags_bash(char *argv[], int i, int y, struct flags *ptr) {
         ptr->e = 1;
         ptr->v = 1;
         res = 2;
+    } else if (argv[i][y] == 'v') {
+        ptr->v = 1;
+        res = 3;
     } else if (argv[i][y] == 'n') {
         ptr->n = 1;
-        res = 3;
+        res = 4;
     } else if (argv[i][y] == 's') {
         ptr->s = 1;
-        res = 4;
+        res = 5;
     } else if (argv[i][y] == 't') {
         ptr->t = 1;
         ptr->v = 1;
-        res = 5;
+        res = 6;
     } else if (argv[i][y] == 'T') {
         ptr->t = 1;
-        res = 6;
+        res = 7;
     } else if (argv[i][y] == 'E') {
         ptr->e = 1;
-        res = 7;
+        res = 8;
+    } else {
+            printf("cat: illegal option -- %c\nusage: cat [-benstuv] [file "
+                    "...]\n", argv[i][y]);   
     }
     return res;
 }
@@ -85,109 +92,90 @@ void init_struct_flags(struct flags *ptr) {
     ptr->t = 0;
     ptr->v = 0;
     ptr->name_file = 0;
-    ptr->check_s = 0;
-    ptr->numiration = 1;
+    ptr->errors = 0;
 }
 
 void check_file(char *argv[], struct flags *ptr, int *position_str) {
     FILE *ptr_file;
-    char c;
-    char *str = NULL;
-    int j;
-    int tmp = 0;
 
     for (int i = 0; i < ptr->name_file; i++) {
-        if ((ptr_file = fopen(argv[position_str[i]], "r")) == NULL) {
-            printf("cat: %s: Нет такого файла или каталога\n",
+        if ((ptr_file = fopen(argv[position_str[i]], "rt")) == NULL) {
+           printf("cat: %s: No such file or directory\n",
                    argv[position_str[i]]);
         } else {
-            for (j = 0; (c = fgetc(ptr_file)) != EOF; j++) {
-                str = realloc(str, (tmp + 1) * sizeof(char));
-                str[tmp] = c;
-                tmp++;
-                if (c == '\n') {
-                    str = realloc(str, (tmp + 1) * sizeof(char));
-                    str[tmp + 1] = '\0';
-                    output_file_with_flags(ptr, str);
-                    tmp = 0;
-                    str = NULL;
-                }
+            if (!ptr->errors)
+            {
+                 output_file_with_flags(ptr, ptr_file);
             }
-            if (str) {
-                output_file_with_flags(ptr, str);
-                str = NULL;
+        fclose(ptr_file);
             }
-            fclose(ptr_file);
-            j = 0;
-            tmp = 0;
         }
+        free(position_str);
     }
-    if (!str) {
-        free(str);
-    }
-}
 
-void output_file_with_flags(struct flags *ptr, char *str) {
-    if (ptr->s) {
-        if (check_null_or_empty_str(str)) {
-            ptr->check_s = 0;
-        } else {
-            ptr->check_s += 1;
-        }
-        if (ptr->check_s > 1) {
-            return;
-        }
-    }
-    if (ptr->b) {
-        if (check_null_or_empty_str(str)) {
-            printf("%6d\t", ptr->numiration);
-            ptr->numiration += 1;
-        }
-    }
-    if (ptr->n && ptr->b == 0) {
-        printf("%6d", ptr->numiration);
-        ptr->numiration += 1;
-    }
-    for (int i = 0; str[i]; i++) {
-        if (ptr->v == 1) {
-            int ch = (int)str[i];
-            if (str[i] < 0) {
-                str[i] &= 127;
-                ch = (int)str[i];
-                ch += 128;
-            }
-            if (ch != 9 && ch != 10 && ch < 32) {
-                printf("^");
-                str[i] += 64;
-            } else if (ch == 127) {
-                printf("^");
-                str[i] = '?';
-            } else if (ch > 127 && ch < 160) {
-                printf("M-^");
-                str[i] = ch - 64;
-                if (str[i] == 'J') {
-                    printf("%c", str[i]);
+void output_file_with_flags(struct flags *ptr, FILE *ptr_file) {
+
+         int new_line = 1, count = 1, second_line = 1, third_line = 0,
+            non_SOS_J = 0;
+        char c = fgetc(ptr_file);
+        while (!feof(ptr_file)) {
+            if (ptr->s == 1 && new_line && c == '\n') {
+                if (third_line) {
+                    third_line = -1;
                 }
-            } else if (ch > 160 && ch <= 255) {
-                str[i] -= 128;
             }
+            if (ptr->n == 1 && new_line && ptr->b != 1) {
+                if (third_line != -1) {
+                    printf("%6d\t", count++);
+                }
+            }
+            if (ptr->b == 1 && new_line && c != '\n') {
+                printf("%6d\t", count++);
+            }
+            if (ptr->e == 1 && c == '\n') {
+                if (third_line != -1) {
+                    printf("$");
+                }
+            }
+            if (ptr->e == 1) {
+                int ch = (int)c;
+                if (c < 0) {
+                    c &= 127;
+                    ch = (int)c;
+                    ch += 128;
+                }
+                if (ch != 9 && ch != 10 && ch < 32) {
+                    printf("^");
+                    c += 64;
+                } else if (ch == 127) {
+                    printf("^");
+                    c = '?';
+                } else if (ch > 127 && ch < 160) {
+                    printf("M-^");
+                    c = ch - 64;
+                    if (c == 'J' && (ptr->b || ptr->n)) {
+                        printf("%c", c);
+                        printf("%6d\t", count);
+                        count += 1;
+                        non_SOS_J = 1;
+                    }
+                } else if (ch > 160 && ch <= 255) {
+                    c -= 128;
+                }
+            }
+            if (ptr->t == 1 && c == '\t') {
+                printf("^");
+                c = 'I';
+            }
+            if (third_line != -1 && non_SOS_J != 1) {
+                printf("%c", c);
+            }
+            new_line = (c == '\n') ? 1 : 0;
+            third_line = (second_line && c == '\n') ? 1 : 0;
+            second_line = (new_line && c == '\n') ? 1 : 0;
+            non_SOS_J = 0;
+            c = fgetc(ptr_file);
         }
-        if (ptr->t == 1 && str[i] == '\t') {
-            printf("^");
-            str[i] = 'I';
-        }
-        printf("%c", str[i]);
     }
-}
-int check_null_or_empty_str(char *str) {
-    int check = 0;
-    for (int i = 0; str[i]; i++) {
-        if (str[i] != ' ' && str[i] != '\n') {
-            check = 1;
-        }
-        if (str[i] == '\t') {
-            check = 1;
-        }
-    }
-    return check;
-}
+
+
